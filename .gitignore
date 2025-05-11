@@ -71,6 +71,15 @@ env.local
 # PyCharm files
 .idea/
 
+# result files
+
+result/
+
+# weight files
+
+*.bin
+*.pth
+
 # mypy
 .mypy_cache/
 dmypy.json

@@ -1,4 +1,3 @@
-
 import torch
 from torch import nn
 
@@ -14,26 +13,25 @@ class MultiExpertsMlp(nn.Module):
                  act_layer:nn.Module = nn.GELU,
                  ):
         super().__init__()
-        #   (mlp): Mlp(
-        #     (fc1): Linear(in_features=192, out_features=768, bias=True)
-        #     (act): GELU(approximate='none')
-        #     (drop1): Dropout(p=0.0, inplace=False)
-        #     (norm): Identity()
-        #     (fc2): Linear(in_features=768, out_features=192, bias=True)
-        #     (drop2): Dropout(p=0.0, inplace=False)
-    #   )
-        self.fc1_weights = nn.Parameter(torch.randn(expert_num, in_features, hidden_features))
-        self.fc1_biases = nn.Parameter(torch.randn(expert_num, hidden_features))
+        # 修改参数名称以符合PyTorch标准命名约定
+        # 创建fc1和fc2作为模块容器
+        self.fc1 = nn.Module()
+        self.fc2 = nn.Module()
+        
+        # 将权重和偏置作为fc1和fc2的参数
+        self.fc1.weight = nn.Parameter(torch.randn(expert_num, in_features, hidden_features))
+        self.fc1.bias = nn.Parameter(torch.randn(hidden_features))
+        
         self.act = nn.GELU()
         self.drop1 = nn.Dropout(p=0.0)
         self.norm = nn.Identity()
-        self.fc2_weights = nn.Parameter(torch.randn(expert_num, hidden_features, out_features))
-        self.fc2_biases = nn.Parameter(torch.randn(expert_num, out_features))
+        
+        self.fc2.weight = nn.Parameter(torch.randn(expert_num, hidden_features, out_features))
+        self.fc2.bias = nn.Parameter(torch.randn(out_features))
         self.drop2 = nn.Dropout(p=0.0)
 
     
     def forward(self, x:torch.Tensor) -> torch.Tensor:
-        hidden_results = self.norm(self.act(self.drop1(torch.einsum("besd,edh->besh", x, self.fc1_weights) + self.fc1_biases)))
-        return self.drop2(torch.einsum("besh,ehd->besd", hidden_results, self.fc2_weights) + self.fc2_biases)
-
-        
+        # 更新forward函数以使用新的参数名称
+        hidden_results = self.norm(self.act(self.drop1(torch.einsum("besd,edh->besh", x, self.fc1.weight) + self.fc1.bias)))
+        return self.drop2(torch.einsum("besh,ehd->besd", hidden_results, self.fc2.weight) + self.fc2.bias)
