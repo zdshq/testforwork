@@ -14,9 +14,19 @@ import json
 from pathlib import Path
 
 def main():
+
+    # 超参数设置
+    num_epochs = 300
+    batch_size = 128
+    initial_learning_rate = 0.001 # This will be the peak LR after warmup
+    image_size = 224
+    warmup_epochs = 10 # Number of epochs for learning rate warmup
+    weight_decay = 0.05 # Significantly reduced, common for ViTs with AdamW
+    gradient_clipping_norm = 1.0 # Common value for gradient clipping
+    num_experts = 192
     # 创建基于时间的运行ID
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_name = f"run_{timestamp}"
+    run_name = f"run_{timestamp}_{num_experts}"
     
     # 创建result目录以及本次运行的子目录
     result_dir = Path("result")
@@ -36,15 +46,7 @@ def main():
         with open(log_file, "a") as f:
             f.write(message+'\n')
     
-    # 超参数设置
-    num_epochs = 300
-    batch_size = 128
-    initial_learning_rate = 0.001 # This will be the peak LR after warmup
-    image_size = 224
-    warmup_epochs = 10 # Number of epochs for learning rate warmup
-    weight_decay = 0.05 # Significantly reduced, common for ViTs with AdamW
-    gradient_clipping_norm = 1.0 # Common value for gradient clipping
-    num_experts = 192
+
     
     # 保存配置信息
     config = {
@@ -60,7 +62,7 @@ def main():
             "num_heads": 3,
             "num_classes": 100,
             "depth": 12,
-            "embed_dim": 192,
+            "embed_dim": 4,
             "num_experts":num_experts
         },
         "pretrained_weights": "moe_model_with_pretrained_weights.pth"
@@ -96,10 +98,12 @@ def main():
 
     # 初始化模型、损失函数和优化器
     model = VisionTransformer_zeke(num_heads=3,num_classes=100,depth=12,embed_dim=192, num_experts=num_experts)
+
     
     log_message("Loading pretrained weights...")
     pretrained_weights = torch.load("moe_model_with_pretrained_weights.pth")
     model.load_state_dict(pretrained_weights)
+
     log_message("Successfully loaded pretrained weights!")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -213,7 +217,7 @@ def main():
     # for epoch in range(start_epoch, num_epochs):
     #     # ... training logic ...
         # 保存最新的模型
-        torch.save(checkpoint, model_dir / f"checkpoint_latest.pth")
+        # torch.save(checkpoint, model_dir / f"checkpoint_latest.pth")
         
         # 如果达到新的最佳准确率，则保存最佳模型
         if accuracy > best_accuracy:

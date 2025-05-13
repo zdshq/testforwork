@@ -13,7 +13,7 @@ Dense_part = dense_model.state_dict()
 
 print(dense_model)
 
-moe_model = VisionTransformer_zeke(embed_dim=192, num_heads=3)
+moe_model = VisionTransformer_zeke(embed_dim=192, num_heads=3, num_experts=192)
 
 moe_part = moe_model.state_dict()
 

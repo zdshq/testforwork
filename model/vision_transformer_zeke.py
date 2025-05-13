@@ -151,40 +151,50 @@ class MoeMlp(nn.Module):
 
 class MoeLayer(nn.Module):
     def __init__(
-            self,
-            in_features: int,
-            hidden_features:int,
-            out_features: int,
-            act_layer: Type[nn.Module],
-            drop: float = 0.,
-            num_experts: int = 4,
-            per_expert_slots: int = 1,
-            ):
+        self,
+        in_features: int,
+        hidden_features: int,
+        out_features: int,
+        act_layer: Type[nn.Module] = nn.GELU,
+        drop1: float = 0.1,
+        drop2: float = 0.1,
+        norm_layer: Optional[Type[nn.Module]] = nn.LayerNorm,
+        num_experts: int = 4,
+        per_expert_slots: int = 1,
+        residual: bool = True,
+    ):
         super().__init__()
+        self.residual = residual
+        # 槽位
         self.slots = nn.Parameter(torch.randn(num_experts, per_expert_slots, in_features))
-
-        self.experts = MultiExpertsMlp(in_features, hidden_features, out_features, num_experts)
+        # 专家网络
+        self.experts = MultiExpertsMlp(
+            in_features, hidden_features, out_features,
+            expert_num=num_experts,
+            act_layer=act_layer,
+            drop1=drop1,
+            drop2=drop2,
+            norm_layer=norm_layer,
+            residual=residual,
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        sims = torch.einsum("bld,esd->besl", x, self.slots)
+        dispatch_w = F.softmax(sims, dim=-1)
+        combine_w  = F.softmax(sims, dim=-2)
+        dispatched = torch.einsum("bld,besl->besd", x, dispatch_w)
+        expert_out = self.experts(dispatched)
+        out = torch.einsum("besd,besl->bld", expert_out, combine_w)
+        # MoeLayer 本身不残差，残差已在专家内处理
+        return out
 
-        
-        # 计算输入与每个专家槽位的相似度
-        # [B, E, S, L]
-        similarities = torch.einsum("bld,esd->besl", x, self.slots)
-        
-        # 在最后一个维度上应用softmax，得到 dispatch 权重
-        dispatch_weights = F.softmax(similarities, dim=-1)
-        
-        
-        combine_weights = F.softmax(similarities, dim=-2)
-        
-        dispatch_inputs = torch.einsum("bld,besl->besd", x, dispatch_weights)
-        
-        output = self.experts(dispatch_inputs)
+# 默认示例
+# layer = MoeLayer(64, 128, 64)
+# x = torch.randn(32, 10, 64)
+# out = layer(x)
 
-        output = torch.einsum("besd,besl->bld", output, combine_weights)
-        
-        return output
+
+
         
 
 
@@ -241,7 +251,6 @@ class Block(nn.Module):
                 hidden_features=int(dim * moe_mlp_ratio),
                 out_features=dim,
                 act_layer=act_layer,
-                drop=proj_drop,
                 num_experts=per_layer_experts,
                 per_expert_slots=per_expert_slots
             )
